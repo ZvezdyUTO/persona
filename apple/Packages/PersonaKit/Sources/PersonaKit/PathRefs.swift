@@ -205,8 +205,10 @@ public nonisolated struct PathMarkdown: Sendable {
         paths = PathRefs.unique(self.spots.map(\.ref))
     }
 
-    /// The source with the paths `linkable` says yes to as links, and which paths those are.
-    public func linked(_ linkable: (String) -> Bool) -> (markdown: String, paths: Set<String>) {
+    /// The source with the paths `linkable` says yes to as links, and which paths those are. `plainCode`: a whole code
+    /// span is linked as its words (Markdown's marks escaped), not as code: where code is drawn in the body's color
+    /// (iOS, #2984), a path that opens keeps the link's.
+    public func linked(plainCode: Bool = false, _ linkable: (String) -> Bool) -> (markdown: String, paths: Set<String>) {
         let ns = source as NSString
         var out = ""
         var at = 0
@@ -214,13 +216,28 @@ public nonisolated struct PathMarkdown: Sendable {
         for s in spots where s.range.location >= at && linkable(s.ref.path) {
             guard let url = PathLinkURL.make(s.ref.path, line: s.ref.line) else { continue }
             out += ns.substring(with: NSRange(location: at, length: s.range.location - at))
-            out += "[" + ns.substring(with: s.range) + "](" + url.absoluteString + ")"
+            out += "[" + (s.code && plainCode ? Self.words(of: ns.substring(with: s.range)) : ns.substring(with: s.range)) + "](" + url.absoluteString + ")"
             at = NSMaxRange(s.range)
             linked.insert(s.ref.path)
         }
         guard !linked.isEmpty else { return (source, []) }
         out += ns.substring(from: at)
         return (out, linked)
+    }
+
+    /// A code span's words as Markdown text: the backticks off (and the one space CommonMark takes off each end),
+    /// the marks Markdown reads inside a line escaped.
+    static func words(of span: String) -> String {
+        var inner = span.drop { $0 == "`" }
+        while inner.last == "`" { inner = inner.dropLast() }
+        var text = String(inner)
+        if text.count > 2, text.hasPrefix(" "), text.hasSuffix(" "), !text.allSatisfy({ $0 == " " }) {
+            text = String(text.dropFirst().dropLast())
+        }
+        return text.reduce(into: "") { out, c in
+            if "\\`*_[]()<>!|~#$".contains(c) { out.append("\\") }
+            out.append(c)
+        }
     }
 
     // Links written ([text](url), images: the formulas are `![tex](persona-math:…)`), reference links, and <autolinks>

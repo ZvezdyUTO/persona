@@ -348,6 +348,9 @@ nonisolated enum Theme {
         static let label = SwiftUI.Font.caption
         /// Code, diffs, paths, terminal snippets (13).
         static let code = SwiftUI.Font.footnote.monospaced()
+        /// Inline code in a reply (#2984): a monospaced face by name. `.monospaced()` gave way to the style's font design
+        /// (RootView's `fontDesign`), and a run inside a paragraph cannot take a design of its own.
+        static let inlineCodeFamily = "Menlo"
 
         /// Text styles follow Dynamic Type on the iPhone: nothing to multiply.
         static let scale: CGFloat = 1
@@ -883,6 +886,8 @@ nonisolated enum Theme {
 
     static let primaryText = Color(light: 0x1C1C1E, dark: 0xF2F2F7)
     static let codeBackground = Color(light: 0xF3F1EC, dark: 0x1C1D21)
+    /// Inline code in a reply (#2984): a light gray under the body's color (blue is for what opens).
+    static let inlineCodeBackground = Color(light: 0xEBEBEF, dark: 0x2C2C31)
     /// A reply's code block's title bar (#2984): its language and Copy, a shade off `codeBackground`.
     static let codeBar = Color(light: 0xE8E5DE, dark: 0x27282D)
     /// A reply's quote (#2984): its card under the accent bar, the accent faint.

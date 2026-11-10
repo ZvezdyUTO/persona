@@ -19,9 +19,18 @@ extension MarkdownUI.Theme {
         MarkdownUI.Theme()
             .text { FontSize(Theme.Level.body.size * Theme.Font.scale) }
             .code {
+                #if os(macOS)
                 FontFamilyVariant(.monospaced)
                 FontSize(.em(0.88))
                 BackgroundColor(Theme.codeBackground)
+                #else
+                // In the body's color on light gray, tappable to copy (#2984, `CodeCopyMarkdown`): applied after a
+                // link's style, so a copy link keeps it; a path that opens is linked as plain words and stays blue.
+                FontFamily(.custom(Theme.Font.inlineCodeFamily))
+                FontSize(.em(0.88))
+                ForegroundColor(Theme.primaryText)
+                BackgroundColor(Theme.inlineCodeBackground)
+                #endif
             }
             .strong { FontWeight(.semibold) }
             .link { ForegroundColor(Theme.accent) }
@@ -1155,7 +1164,7 @@ struct LinkedMarkdown: View {
             return copies ? Self.memo(key + "\u{1}") { _ in MarkdownContent(CodeCopyMarkdown.linked(paths.source)) } : plain
         }
         return Self.memo(key + "\u{0}" + there.joined(separator: "\n")) { _ in
-            let linked = paths.linked { there.contains($0) }.markdown
+            let linked = paths.linked(plainCode: copies) { there.contains($0) }.markdown
             return MarkdownContent(copies ? CodeCopyMarkdown.linked(linked) : linked)
         }
     }

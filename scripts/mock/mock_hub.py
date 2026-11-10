@@ -8477,7 +8477,7 @@ if os.environ.get("MOCK_REPLY_BLOCKS") == "1":
     SESSIONS.append(sess("macbook", REPLY_BLOCKS, "代码和引用", "/Users/me/code/weather", "done", "read", "weather", 1, "blocks", 2, 1, "好"))
     ITEMS[REPLY_BLOCKS] = [
         it("user", "text", 3, text="首页的缓存怎么清？"),
-        it("assistant", "text", 2, text="先跑 `npm run build`，再清掉 `.cache` 目录：\n\n```ts\nexport async function clear(page: string) {\n"
+        it("assistant", "text", 2, text="先跑 `npm run build`，再清掉 `.cache` 目录（改在 `server/handlers.go`）：\n\n```ts\nexport async function clear(page: string) {\n"
                                         "  await caches.delete(`page:${page}`)\n  return reload(page)\n}\n```\n\n不带语言的也一样：\n\n```\n"
                                         "rm -rf .cache && npm run build\n```\n\n> 缓存键改了以后，旧缓存要等一天才过期。\n\n"
                                         "> 上线前请确认三件事：一是首页的请求已经合并，跑过一遍回归测试；二是价格页换成了新的缓存键，"
