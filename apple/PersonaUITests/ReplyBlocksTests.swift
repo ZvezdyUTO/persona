@@ -69,6 +69,7 @@ final class ReplyBlocksTests: XCTestCase {
         sleep(1)
         let got = composer.value as? String ?? ""
         empty()
+        sleep(2) // drafts are saved a second after the last change (`Debouncer`): the next test's launch kept the paste
         return got
     }
 
