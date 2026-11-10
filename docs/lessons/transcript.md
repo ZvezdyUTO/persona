@@ -235,6 +235,8 @@ A view that fetches once per id cannot recover when the store puts the same id b
   `lib/complete-sessions.ts`) and read complete pages again only on first use, an expired revision (`409
   revision_expired`: every hub restart), a changed hub or pull to refresh.
 - A hint carries the hub's revision; one the copy already holds (the hint on every connect, a burst's repeat) needs no read.
+- A loop that follows `next_cursor` stops on a cursor it has already seen: a web test fake that answered every page
+  with the same cursor kept the new baseline reading pages until the test runner ran out of memory.
 - A one-shot recovery budget must be refilled after a successful read: iOS allowed one `409` recovery per query for
   the life of the list, so the second hub restart left a list with a stale checkpoint that failed every later read.
 - The hub's `traffic` journal lines count by route template, not query, so a complete list and a small delta look the
