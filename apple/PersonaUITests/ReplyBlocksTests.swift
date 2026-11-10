@@ -84,6 +84,12 @@ final class ReplyBlocksTests: XCTestCase {
         open()
         let code = app.links.matching(NSPredicate(format: "label CONTAINS %@", "npm run build")).firstMatch
         XCTAssertTrue(code.waitForExistence(timeout: 5), "inline code is not tappable:\n\(app.debugDescription)")
+        // The chat can open with the composer focused (an earlier test's draft) and this paragraph under the top bar,
+        // where a tap goes to the bar: drag the chat down until the code is clear of it.
+        let bar = app.buttons["chat.compactTitle"]
+        for _ in 0..<3 where bar.exists && code.frame.minY < bar.frame.maxY + 8 {
+            app.scrollViews.firstMatch.swipeDown(velocity: .slow)
+        }
         code.tap()
         XCTAssertTrue(toast("已拷贝").waitForExistence(timeout: 3), "no Copied notice")
         XCTAssertEqual(pasted(), "npm run build")

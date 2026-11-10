@@ -369,9 +369,6 @@ nonisolated enum Theme {
         static let label = SwiftUI.Font.caption
         /// Code, diffs, paths, terminal snippets (13).
         static let code = SwiftUI.Font.footnote.monospaced()
-        /// Inline code in a reply (#2984): a monospaced face by name. `.monospaced()` gave way to the style's font design
-        /// (RootView's `fontDesign`), and a run inside a paragraph cannot take a design of its own.
-        static let inlineCodeFamily = "Menlo"
 
         /// Text styles follow Dynamic Type on the iPhone: nothing to multiply.
         static let scale: CGFloat = 1

@@ -26,7 +26,8 @@ extension MarkdownUI.Theme {
                 #else
                 // In the body's color on light gray, tappable to copy (#2984, `CodeCopyMarkdown`): applied after a
                 // link's style, so a copy link keeps it; a path that opens is linked as plain words and stays blue.
-                FontFamily(.custom(Theme.Font.inlineCodeFamily))
+                // Monospaced as the code blocks are, which holds because the blocks give their runs their fonts (`runFonts`).
+                FontFamilyVariant(.monospaced)
                 FontSize(.em(ReplyMetrics.inlineCode))
                 ForegroundColor(Theme.primaryText)
                 BackgroundColor(Theme.inlineCodeBackground)
@@ -35,19 +36,19 @@ extension MarkdownUI.Theme {
             .strong { FontWeight(.semibold) }
             .link { ForegroundColor(Theme.accent) }
             .heading1 { config in
-                config.label.markdownMargin(top: ReplyMetrics.heading1.top, bottom: ReplyMetrics.heading1.bottom)
+                config.label.runFonts().markdownMargin(top: ReplyMetrics.heading1.top, bottom: ReplyMetrics.heading1.bottom)
                     .markdownTextStyle { FontWeight(.bold); FontSize(.em(ReplyMetrics.heading1.size)) }
             }
             .heading2 { config in
-                config.label.markdownMargin(top: ReplyMetrics.heading2.top, bottom: ReplyMetrics.heading2.bottom)
+                config.label.runFonts().markdownMargin(top: ReplyMetrics.heading2.top, bottom: ReplyMetrics.heading2.bottom)
                     .markdownTextStyle { FontWeight(.semibold); FontSize(.em(1)) }
             }
             .heading3 { config in
-                config.label.markdownMargin(top: ReplyMetrics.heading3.top, bottom: ReplyMetrics.heading3.bottom)
+                config.label.runFonts().markdownMargin(top: ReplyMetrics.heading3.top, bottom: ReplyMetrics.heading3.bottom)
                     .markdownTextStyle { FontWeight(.semibold); FontSize(.em(1)) }
             }
             .paragraph { config in
-                config.label.fixedSize(horizontal: false, vertical: true).relativeLineSpacing(.em(ReplyMetrics.lineSpacing))
+                config.label.runFonts().fixedSize(horizontal: false, vertical: true).relativeLineSpacing(.em(ReplyMetrics.lineSpacing))
                     .markdownMargin(top: 0, bottom: ReplyMetrics.paragraphBottom)
             }
             .listItem { config in config.label.markdownMargin(top: .em(ReplyMetrics.itemTop)) }
@@ -84,8 +85,29 @@ extension MarkdownUI.Theme {
                 #endif
             }
             .table { config in FittedTable(config: config) } // fits the width it gets; scrolls only when it cannot
-            .tableCell { config in FittedTableCell(config: config) }
+            .tableCell { config in FittedTableCell(config: config).runFonts() }
     }
+}
+
+/// A block's words each keep their own font (#2984). The style's font design set on the root (RootView's `fontDesign`)
+/// replaces every run's font with the system one of that design, a monospaced or named one included, so inline code was
+/// drawn in the body font. Under a block that draws words the design is cleared and given to its runs as their family
+/// instead, and inline code's monospaced variant holds. The Mac is frozen: it keeps the root's design.
+struct RunFonts: ViewModifier {
+    @Environment(\.fontDesign) private var design
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content
+        #else
+        content.markdownTextStyle { FontFamily(.system(design ?? .default)) }.fontDesign(nil)
+        #endif
+    }
+}
+
+extension View {
+    /// The block's runs keep their fonts under the style's font design (`RunFonts`).
+    func runFonts() -> some View { modifier(RunFonts()) }
 }
 
 extension MarkdownUI.Theme {
