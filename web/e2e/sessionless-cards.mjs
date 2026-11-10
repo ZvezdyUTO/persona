@@ -105,8 +105,8 @@ try {
     if (scalars) {
       await page.goto(new URL("/requests/scalar-form", base).href);
       const form = page.locator('[data-card="scalar-form"]');
-      const when = form.getByLabel("Date and time", { exact: true });
-      const count = form.getByLabel("Count", { exact: true });
+      const when = form.getByLabel(labels.field_required.replace("{title}", "Date and time"), { exact: true });
+      const count = form.getByLabel(labels.field_required.replace("{title}", "Count"), { exact: true });
       const submit = form.getByRole("button", { name: labels.submit, exact: true });
       await when.waitFor();
       await page.waitForFunction((dark) => document.documentElement.classList.contains("dark") === dark, theme === "dark");
