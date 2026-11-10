@@ -609,6 +609,9 @@ private struct AttachPhotoCell: View {
                 }
                 .frame(width: side, height: side)
                 .clipped()
+                // Clipping limits only the drawing: a wide or tall picture's thumbnail still took taps past its square,
+                // and the cell to the right or below, drawn over it, got the photo the finger was on (#3689).
+                .contentShape(.rect)
                 if asset.mediaType == .video {
                     Text(Duration.seconds(asset.duration).formatted(.time(pattern: .minuteSecond)))
                         .font(Theme.Font.labelStrong)
