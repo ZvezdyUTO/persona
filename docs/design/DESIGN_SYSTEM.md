@@ -278,6 +278,10 @@ Reduce Motion:
 - Raw symbol names still appear in about 87 baselined places (settings rows, Lark, notification actions, controls).
 - Web draws about 80 stroke glyphs (`web/src/ui/icons.tsx`, 15 px, stroke 1.9). Android uses Phosphor. There is no shared glyph map.
 
+`Theme.Icon.phoneControl` (`iphone.radiowaves.left.and.right`) is the assistant operating an iPhone through a computer:
+the phone-control sections and the `iphone_*` tools. Why a separate symbol: `Theme.Icon.phone` (`iphone`) already means a
+device, and the phone's own data tools (`phone_*`) keep their icon.
+
 ### 2.9 Styles and theme colors
 
 | Style | Surface | Buttons | Canvas | Icons |
@@ -320,6 +324,7 @@ For every component: use the design-system one, not a lookalike. Counts are appr
 | `.surface(in:)` | floating panels: composer, strips, toasts, notices | `apple/Persona/DesignSystem/Styling.swift:8` |
 | `.card()` | grouped-row card, padding default 14 | `apple/Persona/DesignSystem/Components.swift:429` |
 | `NoticeBanner` | persistent in-page notice, neutral, caution or danger, one action | `apple/Persona/DesignSystem/Notice.swift:7` |
+| `TaskOpenButton` | compact task-title + Open navigation row, one line with a 44 pt minimum hit area | `apple/Persona/DesignSystem/TaskOpenButton.swift` |
 | `ReadinessCard` | what the main conversation still needs | `apple/Persona/DesignSystem/ReadinessCard.swift:8` |
 
 `.card()` uses the system grouped background, not the style's card color, so it does not follow Clay, Island or Lark (DS-07). Inset wells (`Fill.well`) are rebuilt by hand in 24+ places. Web has no shared card outside the admin app.
@@ -451,6 +456,13 @@ The iOS in-place selection view (`LiftSelection.swift`) draws the quote card und
 ### 4.1 Navigation hierarchy (super rule 3)
 
 `docs/SUPER_RULES.md` rule 3: Assistant and Agents are the only primary home destinations on iOS, Android and web. Settings opens from the sidebar. Everything else (Inbox, To-dos, Scheduled Tasks, Knowledge, Machines, Health, extension pages) is pushed from the drawer. Push by value for new pages; mixing view-based and value-based pushes in one stack is a known trap. An optional Messages page can be switched on and becomes a third primary destination; whether that fits rule 3 needs the rule owner (DS-26).
+
+A dispatched task's Open link (#3711) is a compact row using existing typography, fill, radius and 44 pt touch-target
+ tokens, not a filter or a link to the whole In Progress list. One task shows its title and Open; a plan lists only its
+ own tasks in order. On iPhone it pushes the existing Agent page by `SessionKey` on the Assistant stack, preserving
+ Back to the conversation; on Mac it opens the task's detail. Before an Agent is available it opens that task's
+ starting/failure detail. This targeted navigation correction reuses existing pages; no new visual style or setting.
+ Details and wire contract: `docs/assistant/unified-entry.md`, "What a dispatch opens".
 
 ### 4.2 Gestures
 
@@ -743,3 +755,11 @@ done, not applicable, or deviated (with the reason). It is short on purpose. The
 - [ ] No new problem of a kind listed in `docs/design/HIG_AUDIT.md`. A PR that fixes a listed finding names its ID.
 - [ ] Structure: in every grouping a session that needs the user is visible without opening anything; rows follow the work-item row; primary screens show no raw model IDs, session IDs, paths or engine names (sections 3.4, 5.6).
 - [ ] Review size: says whether the change is large or small (section 1.4); a large one has had a person look at its screenshots.
+
+## Codex speed controls (#3865)
+
+The web composer reuses its effort chip and radio menu. A Speed submenu reveals native model speed choices and their
+current value, including Unknown before native settings arrive. Its Fast choice explains increased usage or cost.
+Selection waits for native acknowledgment and the session push. Standard is the reversible choice. This requested
+control reuses Menu typography, spacing, focus behavior and light/dark tokens. Settings > Agents > Codex uses the
+existing agent-settings row for the native default. No account or session is automatically switched to Fast.
