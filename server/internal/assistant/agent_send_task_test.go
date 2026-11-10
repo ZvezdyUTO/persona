@@ -528,11 +528,18 @@ func TestAgentSendExitToAnotherConversationsAgentIsRefused(t *testing.T) {
 				sid, text string
 				todo      Todo
 			}{{"peer0001", "/exit", peer}, {"peer0001", " /quit\n", peer}, {"peeroff1", "/exit", peerOff}} {
-				want := fmt.Sprintf("%s works for task %q (%s) of another conversation: %s would close the agent that task runs on, so "+
-					"nothing was sent. The user can close it in the app, or with agent_archive and close once they confirm on the phone",
-					c.sid, c.todo.Title, c.todo.ID, strings.TrimSpace(c.text))
-				if res, err := s.runTool(ctx, "server", "conv1", "agent_send", sendArgs(c.sid, c.text, task)); err == nil || err.Error() != want {
+				if res, err := s.runTool(ctx, "server", "conv1", "agent_send", sendArgs(c.sid, c.text, task)); err == nil ||
+					err.Error() != exitRefusal(c.sid, c.todo, c.text) {
 					t.Fatalf("%q to %s: %q %v", c.text, c.sid, res, err)
+				}
+			}
+			if task == "" { // agent_interrupt's then is refused the same way, before the turn is stopped
+				args := json.RawMessage(`{"machine":"box","session_id":"peer0001","then":"/exit"}`)
+				if res, err := s.runTool(ctx, "server", "conv1", "agent_interrupt", args); err == nil || err.Error() != exitRefusal("peer0001", peer, "/exit") {
+					t.Fatalf("agent_interrupt then /exit: %q %v", res, err)
+				}
+				if got := f.interrupted(); len(got) != 0 {
+					t.Fatalf("interrupted %v", got)
 				}
 			}
 			if sent := sentToAgent(f); len(sent) != 0 {
@@ -550,11 +557,27 @@ func TestAgentSendExitToAnotherConversationsAgentIsRefused(t *testing.T) {
 			if sent := sentToAgent(f); !slices.Equal(sent, []string{"/exit", "/exit", "/exit", "/exit", "/exit"}) {
 				t.Fatalf("sent %q", sent)
 			}
+			// With an attachment the text is no command (the node closes nothing): it goes as any reply does.
+			newFakeFiles(f, map[string][]byte{"/x/conv1/images/1.png": []byte("png-bytes")})
+			args := json.RawMessage(strings.TrimSuffix(string(sendArgs("peer0001", "/exit", task)), "}") + `,"attachments":["/x/conv1/images/1.png"]}`)
+			if res, err := s.runTool(ctx, "server", "conv1", "agent_send", args); err != nil || !strings.HasPrefix(res, "Sent to peer0001 on box.") {
+				t.Fatalf("/exit with an attachment: %q %v", res, err)
+			}
+			if sent := sentToAgent(f); len(sent) != 6 || !strings.HasPrefix(sent[5], prompts.RenderSideConversation(prompts.SideConversation{From: "conv1", Text: "/exit"})) {
+				t.Fatalf("/exit with an attachment: sent %q", sent[5:])
+			}
 			if after := taskLedger(t, s, "conv1", "conv2"); after != before {
 				t.Fatalf("/exit changed the tasks:\n%s\nwas\n%s", after, before)
 			}
 		})
 	}
+}
+
+// exitRefusal is agent_send's and agent_interrupt's answer to /exit for agent sid on another conversation's task todo.
+func exitRefusal(sid string, todo Todo, text string) string {
+	return fmt.Sprintf("%s works for task %q (%s) of another conversation: %s asks to close the agent that task runs on, which is not "+
+		"this conversation's to do; nothing was sent or stopped. The user can close it in the app, or with agent_archive and close "+
+		"once it is idle and they confirm on the phone", sid, todo.Title, todo.ID, strings.TrimSpace(text))
 }
 
 // From the health space the refusal comes before the phone is asked: no card, nothing sent.
@@ -585,7 +608,7 @@ func TestAgentSendExitToAnotherConversationsAgentAsksNothing(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatalf("waited for the phone: %+v", s.pendingQuestions())
 	}
-	if !isErr || !strings.Contains(out, "would close the agent that task runs on, so nothing was sent") || len(s.pendingQuestions()) != 0 ||
+	if !isErr || !strings.Contains(out, "asks to close the agent that task runs on") || len(s.pendingQuestions()) != 0 ||
 		len(sentToAgent(f)) != 0 {
 		t.Fatalf("%s, sent %q", out, sentToAgent(f))
 	}

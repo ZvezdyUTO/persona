@@ -61,6 +61,9 @@ func (s *Service) toolAgentInterrupt(ctx context.Context, machine, self string, 
 	if c.SourceKind != "" && (c.Capabilities == nil || !c.Capabilities.Interrupt || then != "" && !c.Capabilities.Send) {
 		return "", fmt.Errorf("this agent can only be read: %s", c.ReadOnlyReason)
 	}
+	if err := s.exitAllowed(ctx, self, am, c, then, 0); err != nil { // refused before the turn is stopped or the user asked
+		return "", err
+	}
 	summary := i18n.T(s.lang(ctx), "assistant-tasks.interrupt_summary", i18n.Args{"agent": agentLabel(c), "machine": am.Name})
 	if then != "" {
 		summary += "\n\n" + then
@@ -309,21 +312,22 @@ func (s *Service) supervisedElsewhere(ctx context.Context, self string, am Devic
 	return t, ok && t.Supervision != nil && t.Supervision.Supervisor != self, nil
 }
 
-// exitAllowed refuses a plain agent_send of /exit or /quit to an agent on a task another conversation supervises
-// (#3537), before anything is sent or confirmed on the phone. The node closes an agent only for the bare command, so
-// wrapped as a side conversation it would be typed in as a prompt while the tool said it went; and closing the agent
-// that conversation's task runs on is not this conversation's to do.
-func (s *Service) exitAllowed(ctx context.Context, self string, am Device, c proto.Session, text string) error {
-	if !exitText(text) {
+// exitAllowed refuses /exit or /quit to an agent on a task another conversation supervises (#3537): a plain
+// agent_send of it, or agent_interrupt's then, before anything is stopped, sent or confirmed on the phone. The node
+// closes an agent only for the bare command without attachments (node send.go), so wrapped as a side conversation it
+// would be typed in as a prompt while the tool said it went; and closing the agent that conversation's task runs on is
+// not this conversation's to do. With attachments the text is no command, and goes as any reply does.
+func (s *Service) exitAllowed(ctx context.Context, self string, am Device, c proto.Session, text string, attachments int) error {
+	if !exitText(text) || attachments > 0 {
 		return nil
 	}
 	t, theirs, err := s.supervisedElsewhere(ctx, self, am, c)
 	if err != nil || !theirs {
 		return err
 	}
-	return fmt.Errorf("%s works for task %q (%s) of another conversation: %s would close the agent that task runs on, so nothing "+
-		"was sent. The user can close it in the app, or with agent_archive and close once they confirm on the phone",
-		agentLabel(c), t.Title, t.ID, strings.TrimSpace(text))
+	return fmt.Errorf("%s works for task %q (%s) of another conversation: %s asks to close the agent that task runs on, which is "+
+		"not this conversation's to do; nothing was sent or stopped. The user can close it in the app, or with agent_archive "+
+		"and close once it is idle and they confirm on the phone", agentLabel(c), t.Title, t.ID, strings.TrimSpace(text))
 }
 
 // otherWork refuses task for agent c on self's own task t when its title is another (other work, not to be filed under

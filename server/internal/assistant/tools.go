@@ -261,7 +261,7 @@ func (s *Service) runTool(ctx context.Context, machine, self, name string, args 
 			if err := s.sendTaskAllowed(ctx, self, am, c, *a.Task, a.Text); err != nil {
 				return "", err
 			}
-		} else if err := s.exitAllowed(ctx, self, am, c, a.Text); err != nil {
+		} else if err := s.exitAllowed(ctx, self, am, c, a.Text, len(atts)); err != nil {
 			return "", err
 		}
 		if ok, err := s.confirmOutbound(ctx, machine, self, name, agentLabel(c)+" · "+am.Name+"\n\n"+a.Text, args); err != nil {
