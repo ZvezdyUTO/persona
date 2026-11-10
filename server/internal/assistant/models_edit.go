@@ -218,7 +218,8 @@ func (s *Service) validateModel(ctx context.Context, p ModelPurpose, b ModelBind
 	return nil
 }
 
-// providerModelUses are the current configurable purposes that run on provider: a provider in use is not deleted underneath them.
+// providerModelUses are the current configurable purposes assigned to provider: a provider in use is not deleted underneath them.
+// Automatic selection by the built-in API categories is not an assignment; current extension purposes also protect an inherited provider.
 func (s *Service) providerModelUses(ctx context.Context, provider string) ([]string, error) {
 	uses := []string{}
 	ids := slices.Clone(modelConfigIDs)
@@ -234,9 +235,24 @@ func (s *Service) providerModelUses(ctx context.Context, provider string) ([]str
 		if err != nil {
 			return nil, err
 		}
-		if b.Provider == provider {
-			uses = append(uses, p.Name)
+		if b.Provider != provider {
+			continue
 		}
+		if p.Kind == "api" && slices.Contains(modelCategoryIDs, id) {
+			// Automatic selection follows the remaining providers; only an assignment that still names this provider
+			// without its automatic fallback blocks deletion. Current extension purposes keep their inherited-use guard.
+			without := slices.DeleteFunc(slices.Clone(s.storedLaunchers(ctx)), func(l storedLauncher) bool {
+				return launcherProvider(l.Name) == provider
+			})
+			fallback, err := s.resolveModel(withManagedSnapshot(ctx, without), id)
+			if err != nil {
+				return nil, err
+			}
+			if fallback.Provider != provider {
+				continue
+			}
+		}
+		uses = append(uses, p.Name)
 	}
 	return uses, nil
 }
