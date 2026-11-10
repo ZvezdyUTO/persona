@@ -150,7 +150,7 @@ final class AttachGridTapTests: XCTestCase {
     @MainActor private func number(_ app: XCUIApplication, _ cell: CGRect) -> Int? {
         let element = pickedElements(app).first { abs(square($0.frame).midX - cell.midX) < 2 && abs(square($0.frame).midY - cell.midY) < 2 }
         guard let value = element?.value as? String else { return nil }
-        return value.firstMatch(of: /\d+/).flatMap { Int($0.output) }
+        return Int(value.filter { $0.isASCII && $0.isNumber }) // the one number in it, in any language
     }
 
     /// Unpicks whatever is picked, tapping the middle of each (`tap()` lands near the top-left corner on iOS 27.0).
