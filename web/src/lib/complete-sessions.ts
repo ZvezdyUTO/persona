@@ -54,6 +54,7 @@ export class CompleteSessions {
 
   private async baseline(signal?: AbortSignal): Promise<CompleteRead> {
     const rows = new Map<string, Session>();
+    const cursors = new Set<string>();
     let cursor: string | undefined;
     let revision: string | undefined;
     do {
@@ -69,6 +70,9 @@ export class CompleteSessions {
       for (const row of page.sessions) rows.set(runtimeIdentity(row), row);
       cursor = page.has_more ? page.next_cursor : undefined;
       if (page.has_more && !cursor) throw new Error(t("paged-agents.invalid_page"));
+      // A cursor seen before would page forever: a frozen view's pages each have their own.
+      if (cursor && cursors.has(cursor)) throw new Error(t("paged-agents.repeated_cursor"));
+      if (cursor) cursors.add(cursor);
     } while (cursor);
     this.checkpoint = revision;
     return this.commit(rows);

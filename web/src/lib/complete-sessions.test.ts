@@ -61,11 +61,15 @@ describe("CompleteSessions", () => {
     api.mockResolvedValueOnce(page([row("m", "a")], "r1", { has_more: true, next_cursor: "k" }))
       .mockResolvedValueOnce(page([row("m", "b")], "r2"));
     await expect(list.read()).rejects.toThrow();
+    api.mockResolvedValue(page([row("m", "a")], "r1", { has_more: true, next_cursor: "same" }));
+    await expect(list.read()).rejects.toThrow(); // a cursor that repeats would page forever
+    expect(api.mock.calls.length).toBe(4);
+    api.mockReset();
     api.mockResolvedValueOnce({ sessions: [row("m", "old")] });
     expect((await list.read()).sessions.map((s) => s.session_id)).toEqual(["old"]);
     expect(list.holds("r1")).toBe(false);
     api.mockResolvedValueOnce({ sessions: [row("m", "again")] });
     await list.read();
-    expect(query(api.mock.calls[3])).toEqual({ summary: "0", limit: "200" });
+    expect(query(api.mock.calls[1])).toEqual({ summary: "0", limit: "200" });
   });
 });
