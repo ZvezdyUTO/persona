@@ -1,7 +1,7 @@
 import XCTest
 
 /// A reply's code blocks, inline code and quotes as Telegram draws them (#2984): a code block's Copy takes the whole
-/// block, a tap on inline code takes the span, and a long quote folds and opens. What was copied is read back by
+/// block (and scrolls sideways when a line runs past it), a tap on inline code takes the span, and a long quote folds and opens. What was copied is read back by
 /// pasting it into the composer (the runner may not read the app's pasteboard).
 ///   PORT=18950 MOCK_REPLY_BLOCKS=1 python3 scripts/mock/mock_hub.py &
 ///   TEST_RUNNER_PERSONA_MOCK_HUB=http://127.0.0.1:18950 xcodebuild test … -only-testing:PersonaUITests/ReplyBlocksTests
@@ -17,13 +17,13 @@ final class ReplyBlocksTests: XCTestCase {
         }
     }
 
-    /// The chat with the reply, as it loads.
-    @MainActor private func open() {
+    /// The chat with the reply, as it loads (`extra`: more launch arguments, a text size).
+    @MainActor private func open(_ extra: [String] = []) {
         let hub = ProcessInfo.processInfo.environment["PERSONA_MOCK_HUB"]!
         app = XCUIApplication()
         let pair = "persona://pair?url=" + hub.addingPercentEncoding(withAllowedCharacters: .alphanumerics)! + "&token=mock"
         app.launchArguments = ["-pairURL", pair, "-tab", "dev", "-openSession", "macbook/a1f3c2d4-0000-4000-8000-0000005e1ec9",
-                               "-openChatsFresh", "YES"]
+                               "-openChatsFresh", "YES"] + extra
         app.launchPinned()
         let last = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "有问题再找我")).firstMatch
         XCTAssertTrue(last.waitForExistence(timeout: 20), "the reply did not show:\n\(app.debugDescription)")
@@ -82,6 +82,28 @@ final class ReplyBlocksTests: XCTestCase {
         copy.tap()
         XCTAssertTrue(toast("已拷贝代码").waitForExistence(timeout: 3), "no Code copied notice")
         XCTAssertEqual(pasted(), "export async function clear(page: string) {\n  await caches.delete(`page:${page}`)\n  return reload(page)\n}")
+    }
+
+    /// At the largest text size a code line runs past its block's edge (code does not wrap): the block scrolls sideways
+    /// to show the rest, a left swipe on it moving the line left.
+    @MainActor func testACodeBlockScrollsSidewaysAtTheLargestText() throws {
+        open(["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
+        let text = "rm -rf .cache && npm run build"
+        let line = app.staticTexts.matching(NSPredicate(format: "label == %@", text)).firstMatch
+        XCTAssertTrue(line.waitForExistence(timeout: 5), "no short code block:\n\(app.debugDescription)")
+        // The chat opens at its end, this block above the quotes: dragged down until it is on screen.
+        for _ in 0..<6 where !line.isHittable {
+            app.scrollViews.firstMatch.swipeDown(velocity: .slow)
+        }
+        XCTAssertTrue(line.isHittable, "the short code block did not come on screen:\n\(app.debugDescription)")
+        // Its own scroll view: the innermost of those holding the line (the chat's holds it too).
+        let holders = app.scrollViews.containing(NSPredicate(format: "label == %@", text))
+        XCTAssertGreaterThan(holders.count, 1, "the code block is not a scroll view of its own:\n\(app.debugDescription)")
+        let block = holders.element(boundBy: holders.count - 1)
+        let start = line.frame.minX
+        block.swipeLeft(velocity: .slow)
+        sleep(1) // settled: a block with nothing to scroll would have bounced back
+        XCTAssertLessThan(line.frame.minX, start - 20, "the code block did not scroll sideways")
     }
 
     @MainActor func testATapOnInlineCodeCopiesIt() throws {
