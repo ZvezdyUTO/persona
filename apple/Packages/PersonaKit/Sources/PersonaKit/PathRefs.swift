@@ -225,7 +225,7 @@ public nonisolated struct PathMarkdown: Sendable {
 
     // Links written ([text](url), images: the formulas are `![tex](persona-math:…)`), reference links, and <autolinks>
     // (bare links are made those by `Links.markdown` first).
-    private static let protected = try! NSRegularExpression(pattern: #"!?\[[^\]\n]*\]\([^)\n]*\)|!?\[[^\]\n]*\]\[[^\]\n]*\]|<[^\s<>]+>|^\s*\[[^\]\n]+\]:.*$"#)
+    static let protected = try! NSRegularExpression(pattern: #"!?\[[^\]\n]*\]\([^)\n]*\)|!?\[[^\]\n]*\]\[[^\]\n]*\]|<[^\s<>]+>|^\s*\[[^\]\n]+\]:.*$"#)
 
     /// The paths of one line (outside a code block).
     private static func spots(in line: String) -> [Spot] {
@@ -250,7 +250,7 @@ public nonisolated struct PathMarkdown: Sendable {
     }
 
     /// A line's code spans: a run of backticks to the next run of the same length (the span, and what is in it).
-    private static func codeSpans(_ u: [UInt16]) -> [(whole: NSRange, inner: NSRange)] {
+    static func codeSpans(_ u: [UInt16]) -> [(whole: NSRange, inner: NSRange)] {
         var spans: [(NSRange, NSRange)] = []
         var i = 0
         while i < u.count {

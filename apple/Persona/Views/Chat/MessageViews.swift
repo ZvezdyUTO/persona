@@ -48,14 +48,23 @@ extension MarkdownUI.Theme {
                     RenderedBlock(kind: kind, source: config.content.trimmingCharacters(in: .whitespacesAndNewlines)) { plainCodeBlock(config) }
                         .markdownMargin(top: 4, bottom: 12)
                 } else {
+                    // The Mac is frozen (docs/apple/mac.md): its code blocks keep their hover Copy.
+                    #if os(macOS)
                     plainCodeBlock(config).markdownMargin(top: 4, bottom: 12)
+                    #else
+                    ReplyCodeBlock(config: config).markdownMargin(top: 4, bottom: 12)
+                    #endif
                 }
             }
             .blockquote { config in
+                #if os(macOS)
                 config.label
                     .padding(.leading, Theme.Space.m)
                     .overlay(alignment: .leading) { Rectangle().fill(Theme.accent.opacity(0.5)).frame(width: Theme.Size.bar) }
                     .markdownTextStyle { ForegroundColor(.secondary) }
+                #else
+                ReplyQuote(config: config)
+                #endif
             }
             .table { config in FittedTable(config: config) } // fits the width it gets; scrolls only when it cannot
             .tableCell { config in FittedTableCell(config: config) }
@@ -1074,6 +1083,7 @@ struct StreamingText: View {
                 .padding(.top, parts.done.last.map { StreamChunks.gap(after: $0, before: parts.tail) } ?? 0)
         }
         .markdownSoftBreakMode(.lineBreak) // as the finished reply (`AssistantText`)
+        .environment(\.replyStreaming, true) // its quotes fold once it is done
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -1128,13 +1138,25 @@ struct LinkedMarkdown: View {
     var body: some View { Markdown(content) }
 
     private var content: MarkdownContent {
-        // Only a message with paths reads the presence (and is drawn again when an answer comes).
-        guard !paths.paths.isEmpty, let model, let scope else { return plain }
-        let there = paths.paths.filter { model.filePresence.linkable($0, in: scope) }
-        guard !there.isEmpty else { return plain }
+        // In a chat on the iPhone and iPad a tap on inline code copies it (#2984): its spans are links the chat's
+        // `openURL` answers (`CodeCopyMarkdown`), the ones linked to a file first.
+        #if os(iOS)
+        let copies = scope != nil
+        #else
+        let copies = false
+        #endif
         let paths = paths
+        // Only a message with paths reads the presence (and is drawn again when an answer comes).
+        guard !paths.paths.isEmpty, let model, let scope else {
+            return copies ? Self.memo(key + "\u{1}") { _ in MarkdownContent(CodeCopyMarkdown.linked(paths.source)) } : plain
+        }
+        let there = paths.paths.filter { model.filePresence.linkable($0, in: scope) }
+        guard !there.isEmpty else {
+            return copies ? Self.memo(key + "\u{1}") { _ in MarkdownContent(CodeCopyMarkdown.linked(paths.source)) } : plain
+        }
         return Self.memo(key + "\u{0}" + there.joined(separator: "\n")) { _ in
-            MarkdownContent(paths.linked { there.contains($0) }.markdown)
+            let linked = paths.linked { there.contains($0) }.markdown
+            return MarkdownContent(copies ? CodeCopyMarkdown.linked(linked) : linked)
         }
     }
 }
