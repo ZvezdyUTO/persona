@@ -166,7 +166,7 @@ final class AttachGridTapTests: XCTestCase {
     private func settle() { RunLoop.current.run(until: Date().addingTimeInterval(1.2)) }
 
     @MainActor private func shot(_ app: XCUIApplication, _ name: String) {
-        let full = "\(name)-\(UITestStyle.name)"
+        let full = "\(name)-\(UITestStyle.name)-w\(Int(app.windows.firstMatch.frame.width))" // one device's from another's
         let png = app.screenshot()
         let attachment = XCTAttachment(screenshot: png)
         attachment.name = full
