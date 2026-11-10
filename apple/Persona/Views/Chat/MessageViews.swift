@@ -92,15 +92,14 @@ extension MarkdownUI.Theme {
 /// A block's words each keep their own font (#2984). The style's font design set on the root (RootView's `fontDesign`)
 /// replaces every run's font with the system one of that design, a monospaced or named one included, so inline code was
 /// drawn in the body font. Under a block that draws words the design is cleared and given to its runs as their family
-/// instead, and inline code's monospaced variant holds. The Mac is frozen: it keeps the root's design.
+/// instead (read from the style: SwiftUI has no public environment value for it), and inline code's monospaced variant
+/// holds. The Mac is frozen: it keeps the root's design.
 struct RunFonts: ViewModifier {
-    @Environment(\.fontDesign) private var design
-
     func body(content: Content) -> some View {
         #if os(macOS)
         content
         #else
-        content.markdownTextStyle { FontFamily(.system(design ?? .default)) }.fontDesign(nil)
+        content.markdownTextStyle { FontFamily(.system(StyleSpec.current.fontDesign)) }.fontDesign(nil)
         #endif
     }
 }

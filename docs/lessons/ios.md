@@ -9,7 +9,8 @@ with the system font of that design: `.monospaced()`, `Font.system(design:)` and
 (measured with `ImageRenderer`). RootView sets the style's design, so MarkdownUI's monospaced variant and a named face
 both came out in the body font. Only `.fontDesign(nil)` leaves runs their own fonts: clear it where a view draws
 runs that need their own face, and give the other runs the design as their family (`RunFonts` in
-`Views/Chat/MessageViews.swift`).
+`Views/Chat/MessageViews.swift`). SwiftUI has no public environment value for the design (`@Environment(\.fontDesign)`
+does not compile): read it where it is set from (`StyleSpec.current.fontDesign`).
 
 ## Example-domain labels must be generic too (#3593)
 
