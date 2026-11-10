@@ -58,6 +58,9 @@ struct ReplyQuote: View {
     var config: BlockConfiguration
     @Environment(\.replyStreaming) private var streaming
     @ScaledMetric(relativeTo: .body) private var fold = Theme.Size.quoteFold
+    /// The words' room on the right, clear of the quote mark and the chevron: they are drawn in the label's size, so it
+    /// grows with them (at the largest text sizes a fixed room let the mark sit on the first line).
+    @ScaledMetric(relativeTo: .caption) private var markRoom = Theme.Space.xl
     @State private var height: CGFloat = 0
     @State private var open = false
 
@@ -69,7 +72,7 @@ struct ReplyQuote: View {
         config.label
             .markdownTextStyle { ForegroundColor(.secondary) }
             .padding(.leading, Theme.Space.m)
-            .padding(.trailing, Theme.Space.xl)
+            .padding(.trailing, markRoom)
             .padding(.vertical, Theme.Space.s)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
             .frame(maxHeight: folded ? fold : nil, alignment: .top)

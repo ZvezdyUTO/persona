@@ -40,13 +40,16 @@ final class ReplyBlocksTests: XCTestCase {
     }
 
     /// The composer emptied: the cursor put at its end (its bottom right: a long paste is several lines), then
-    /// deleted back. A paste left in it would stay as a draft for the next test.
+    /// deleted back. A paste left in it would stay as a draft for the next test. A tall draft does not always take the
+    /// cursor at its end (a run once kept two lines of one and pasted between them): looked at again until it is empty.
     @MainActor private func empty() {
         let field = composer
-        let text = field.value as? String ?? ""
-        guard !text.isEmpty, text != field.placeholderValue else { return }
-        field.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.92)).tap()
-        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: text.count + 8))
+        for _ in 0..<3 {
+            let text = field.value as? String ?? ""
+            guard !text.isEmpty, text != field.placeholderValue else { return }
+            field.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.92)).tap()
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: text.count + 8))
+        }
     }
 
     /// What the app put on the pasteboard, pasted into the empty composer from its edit menu (a paste the user taps
