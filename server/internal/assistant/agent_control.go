@@ -276,8 +276,8 @@ func (s *Service) sendTaskAllowed(ctx context.Context, self string, am Device, c
 	if !s.isMain(ctx, self) {
 		return fmt.Errorf("only the main conversation hands out tasks: send it without task")
 	}
-	if t := strings.TrimSpace(text); t == "/exit" || t == "/quit" {
-		return fmt.Errorf("%s closes the agent, it hands it no work: send it without task", t)
+	if exitText(text) {
+		return fmt.Errorf("%s closes the agent, it hands it no work: send it without task", strings.TrimSpace(text))
 	}
 	if err := s.ensureTodosLoaded(ctx); err != nil {
 		return err
@@ -290,6 +290,40 @@ func (s *Service) sendTaskAllowed(ctx context.Context, self string, am Device, c
 		return fmt.Errorf("%w; nothing was sent (send it without task to only send it)", err)
 	}
 	return otherWork(c, t, task)
+}
+
+// exitText: text is only the agents' own command to quit, which the node runs by closing the agent (node exitCommand).
+func exitText(text string) bool {
+	t := strings.TrimSpace(text)
+	return t == "/exit" || t == "/quit"
+}
+
+// supervisedElsewhere is the task agent c works for when a conversation other than self supervises it: a reply to it
+// goes as a side conversation, and /exit to it is refused (exitAllowed). Ownership that cannot be read is an error, so
+// a reply never goes without its provenance.
+func (s *Service) supervisedElsewhere(ctx context.Context, self string, am Device, c proto.Session) (Todo, bool, error) {
+	if err := s.ensureTodosLoaded(ctx); err != nil {
+		return Todo{}, false, err
+	}
+	t, ok := s.taskOf(ctx, am.ID, c.SessionID)
+	return t, ok && t.Supervision != nil && t.Supervision.Supervisor != self, nil
+}
+
+// exitAllowed refuses a plain agent_send of /exit or /quit to an agent on a task another conversation supervises
+// (#3537), before anything is sent or confirmed on the phone. The node closes an agent only for the bare command, so
+// wrapped as a side conversation it would be typed in as a prompt while the tool said it went; and closing the agent
+// that conversation's task runs on is not this conversation's to do.
+func (s *Service) exitAllowed(ctx context.Context, self string, am Device, c proto.Session, text string) error {
+	if !exitText(text) {
+		return nil
+	}
+	t, theirs, err := s.supervisedElsewhere(ctx, self, am, c)
+	if err != nil || !theirs {
+		return err
+	}
+	return fmt.Errorf("%s works for task %q (%s) of another conversation: %s would close the agent that task runs on, so nothing "+
+		"was sent. The user can close it in the app, or with agent_archive and close once they confirm on the phone",
+		agentLabel(c), t.Title, t.ID, strings.TrimSpace(text))
 }
 
 // otherWork refuses task for agent c on self's own task t when its title is another (other work, not to be filed under

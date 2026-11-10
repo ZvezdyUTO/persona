@@ -502,3 +502,91 @@ func TestAgentSendEmptyTaskAsksBeforeItGoes(t *testing.T) {
 		t.Fatalf("%d todos, feed %q", n, feed)
 	}
 }
+
+// /exit or /quit sent as a reply to an agent on a task another conversation supervises is refused before anything is
+// sent (#3537), with the task left out, null or empty: wrapped as a side conversation it would only be typed in while
+// the tool said it went, and the agent that task runs on is not this conversation's to close. To an agent on no task,
+// on the conversation's own task, on the user's own todo or on another conversation's unsupervised task it still goes
+// bare (the node closes it), and the supervising conversation still closes its own.
+func TestAgentSendExitToAnotherConversationsAgentIsRefused(t *testing.T) {
+	for _, task := range []string{``, `null`, `{"title":"","done_when":[],"expect_minutes":0}`} {
+		t.Run(cmp.Or(task, "omitted"), func(t *testing.T) {
+			s, f := newQuietService(t)
+			ctx := t.Context()
+			offline := boxAgent("peeroff1")
+			offline.Status, offline.State = proto.StatusOffline, ""
+			f.setSessions("box", boxAgent("free0001"), boxAgent("peer0001"), boxAgent("user0001"), boxAgent("mine0001"),
+				boxAgent("manual01"), offline)
+			peer := onBoxTask(t, s, "peer0001", "conv2", false, "peer criteria")
+			peerOff := onBoxTask(t, s, "peeroff1", "conv2", false, "peer criteria")
+			onBoxTask(t, s, "user0001", "", false)
+			onBoxTask(t, s, "mine0001", "conv1", false, "my criteria")
+			onBoxTask(t, s, "manual01", "conv2", false)
+			before := taskLedger(t, s, "conv1", "conv2")
+
+			for _, c := range []struct {
+				sid, text string
+				todo      Todo
+			}{{"peer0001", "/exit", peer}, {"peer0001", " /quit\n", peer}, {"peeroff1", "/exit", peerOff}} {
+				want := fmt.Sprintf("%s works for task %q (%s) of another conversation: %s would close the agent that task runs on, so "+
+					"nothing was sent. The user can close it in the app, or with agent_archive and close once they confirm on the phone",
+					c.sid, c.todo.Title, c.todo.ID, strings.TrimSpace(c.text))
+				if res, err := s.runTool(ctx, "server", "conv1", "agent_send", sendArgs(c.sid, c.text, task)); err == nil || err.Error() != want {
+					t.Fatalf("%q to %s: %q %v", c.text, c.sid, res, err)
+				}
+			}
+			if sent := sentToAgent(f); len(sent) != 0 {
+				t.Fatalf("a refused /exit was sent: %q", sent)
+			}
+			for _, sid := range []string{"free0001", "user0001", "mine0001", "manual01"} {
+				if res, err := s.runTool(ctx, "server", "conv1", "agent_send", sendArgs(sid, "/exit", task)); err != nil || res != "Sent to "+sid+" on box." {
+					t.Fatalf("/exit to %s: %q %v", sid, res, err)
+				}
+			}
+			if res, err := s.runTool(ctx, "server", "conv2", "agent_send", sendArgs("peer0001", "/exit", task)); err != nil ||
+				res != "Sent to peer0001 on box." {
+				t.Fatalf("/exit from the supervisor: %q %v", res, err)
+			}
+			if sent := sentToAgent(f); !slices.Equal(sent, []string{"/exit", "/exit", "/exit", "/exit", "/exit"}) {
+				t.Fatalf("sent %q", sent)
+			}
+			if after := taskLedger(t, s, "conv1", "conv2"); after != before {
+				t.Fatalf("/exit changed the tasks:\n%s\nwas\n%s", after, before)
+			}
+		})
+	}
+}
+
+// From the health space the refusal comes before the phone is asked: no card, nothing sent.
+func TestAgentSendExitToAnotherConversationsAgentAsksNothing(t *testing.T) {
+	f := healthHub()
+	f.sessions["server"] = append(f.sessions["server"], proto.Session{SessionID: "code-0000-0000", Cwd: "/home/me/src/app", Agent: "claude",
+		Status: proto.StatusIdle, Title: "app"})
+	s := newTestService(t, f)
+	setSettings(t, s, func(v *Settings) { v.MachineID, v.Main = "server", "main-0000-0000" })
+	ctx := t.Context()
+	todo, err := s.createTodo(ctx, "Chart the app", "notes", "main-0000-0000", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.superviseTodo(ctx, todo.ID, "main-0000-0000", []string{"a chart"}, 30)
+	if err := s.linkTodoAgent(ctx, todo.ID, "server", "code-0000-0000", todo.Title, "/home/me/src/app", "claude"); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	var out string
+	var isErr bool
+	go func() {
+		defer close(done)
+		out, isErr = spaceTool(t, s, "sleep-000-0000", "agent_send", `{"session_id":"code-0000-0000","text":"/exit"}`)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("waited for the phone: %+v", s.pendingQuestions())
+	}
+	if !isErr || !strings.Contains(out, "would close the agent that task runs on, so nothing was sent") || len(s.pendingQuestions()) != 0 ||
+		len(sentToAgent(f)) != 0 {
+		t.Fatalf("%s, sent %q", out, sentToAgent(f))
+	}
+}
