@@ -180,8 +180,41 @@ func TestUltracodeRefusal(t *testing.T) {
 		{"not a refusal", errors.New("connection reset"), asked, false},
 		{"no error", nil, asked, false},
 	} {
-		if _, got := ultracodeRefusal(c.err, c.params); got != c.want {
+		s, _ := newTaskService(t)
+		if _, got := s.ultracodeRefusal(context.Background(), c.err, c.params); got != c.want {
 			t.Errorf("%s: refused %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// The start without ultracode whose answer is lost still says ultracode is off: the model must not think it is on.
+func TestAgentStartWithoutUltracodeSaysSoWhenTheAnswerIsLost(t *testing.T) {
+	s, f := newTaskService(t)
+	shortAgentStartTimeout(t)
+	f.refuseUltra = &rpc.Error{Code: "ultracode_unsupported", Message: "只有 Claude Code Agent 支持 ultracode"}
+	f.slowStart = true
+	args, _ := json.Marshal(map[string]any{"machine": "box", "cwd": "/code/app", "prompt": "把同步层拆成三个模块", "ultracode": true})
+	res, err := s.runTool(context.Background(), "server", "conv9", "agent_start", args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res, "started without ultracode") {
+		t.Fatalf("the unknown-result answer does not say ultracode is off: %q", res)
+	}
+}
+
+// A start refused for ultracode whose second try fails as well leaves the task asking for it: moved to a computer that
+// can, it gets it (#3596).
+func TestTaskKeepsUltracodeWhenTheStartWithoutItFails(t *testing.T) {
+	s, f := newTaskService(t)
+	f.refuseUltra = &rpc.Error{Code: "ultracode_unsupported", Message: "请升级到 Claude Code 2.1.284 或更新版本"}
+	f.startFailed = "zsh: command not found: claude" // the start without it went out, and its launcher failed
+	on := true
+	task := PlanTask{Title: "重构同步层", Prompt: "把同步层拆成三个模块", Machine: "box", Cwd: "/code/app", Ultracode: &on}
+	if _, _, err := s.startTaskAgent(context.Background(), &task, false); err == nil {
+		t.Fatal("the failed start went through")
+	}
+	if task.Ultracode == nil || !*task.Ultracode || strings.Contains(task.Why, "ultracode") {
+		t.Fatalf("a start that did not happen turned ultracode off (%v, why %q)", task.Ultracode, task.Why)
 	}
 }

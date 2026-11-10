@@ -460,11 +460,10 @@ func (s *Service) runTool(ctx context.Context, machine, self, name string, args 
 		knownIDs := s.knownSessionIDs(lctx, am.ID)
 		lcancel()
 		err = s.call(sctx, am.ID, DeviceSessionStart, params, &res)
-		if reason, refused := ultracodeRefusal(err, params); refused {
-			delete(params, "ultracode") // an extra the agent it landed on cannot have: it starts without it (#3596)
-			if err = s.call(sctx, am.ID, DeviceSessionStart, params, &res); err == nil {
-				note += " Note: started without ultracode (" + reason + ")."
-			}
+		if reason, refused := s.ultracodeRefusal(ctx, err, params); refused {
+			delete(params, "ultracode")                                  // an extra the agent it landed on cannot have: it starts without it (#3596)
+			note += " Note: started without ultracode (" + reason + ")." // an answer lost on the way still says so
+			err = s.call(sctx, am.ID, DeviceSessionStart, params, &res)
 		}
 		if err != nil {
 			s.recordStartFailure(ctx, am.ID, launcher, err)

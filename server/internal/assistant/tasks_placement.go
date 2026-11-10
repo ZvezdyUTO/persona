@@ -184,14 +184,11 @@ func (s *Service) startTaskAgent(ctx context.Context, t *PlanTask, retry bool) (
 	}
 	picked, _ := params["launcher"].(string)
 	err = s.call(ctx, m.ID, DeviceSessionStart, params, &res)
-	if reason, refused := ultracodeRefusal(err, params); refused {
+	skipped, refused := s.ultracodeRefusal(ctx, err, params)
+	if refused {
 		delete(params, "ultracode") // an extra the agent it landed on cannot have: it starts without it (#3596)
-		s.logf("task %s: start: %s; starting without ultracode", t.TodoID, reason)
-		if err = s.call(ctx, m.ID, DeviceSessionStart, params, &res); err == nil {
-			off := false
-			t.Ultracode = &off // the card says it is off, and a retry does not ask again
-			t.noteWhy(i18n.T(s.lang(ctx), "assistant-tasks.ultracode_skipped", i18n.Args{"reason": reason}))
-		}
+		s.logf("task %s: start: %s; starting without ultracode", t.TodoID, skipped)
+		err = s.call(ctx, m.ID, DeviceSessionStart, params, &res)
 	}
 	if err != nil {
 		s.recordStartFailure(ctx, m.ID, s.startLauncher(ctx, picked), err)
@@ -210,6 +207,11 @@ func (s *Service) startTaskAgent(ctx context.Context, t *PlanTask, retry bool) (
 	}
 	if !res.Session.Starting {
 		s.recordStartSuccess(ctx, m.ID, s.startLauncher(ctx, picked))
+	}
+	if refused { // only once it started here: a task moved elsewhere after a failed start asks again
+		off := false
+		t.Ultracode = &off // a retry does not ask again
+		t.noteWhy(i18n.T(s.lang(ctx), "assistant-tasks.ultracode_skipped", i18n.Args{"reason": skipped}))
 	}
 	return m.ID, res.Session.SessionID, nil
 }
