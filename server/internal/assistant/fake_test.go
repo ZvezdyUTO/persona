@@ -84,6 +84,7 @@ type fakeHub struct {
 	agents       int
 	offline      map[string]bool
 	failStart    error
+	refuseUltra  error                     // session.start's answer to a start that asks for ultracode (a node refusing it, #3596)
 	worktrees    []map[string]any          // worktree.prepare / worktree.create params, {"method": …} added
 	failWorktree error                     // worktree.create's answer when set
 	slowStart    bool                      // session.start blocks until the call's context ends, then answers with its error (a node that builds the session before answering late)
@@ -398,6 +399,9 @@ func (f *fakeHub) deviceCall(ctx context.Context, p DeviceCall) (json.RawMessage
 			return nil, fmt.Errorf("%s: %w", p.Device, apierr.ErrOffline)
 		}
 		f.starts = append(f.starts, a)
+		if f.refuseUltra != nil && a["ultracode"] == true {
+			return nil, f.refuseUltra
+		}
 		if f.onStart != nil {
 			f.onStart(f, a) // the node changes state (for example its session list) while handling this start
 		}

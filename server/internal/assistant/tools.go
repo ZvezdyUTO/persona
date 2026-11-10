@@ -459,7 +459,14 @@ func (s *Service) runTool(ctx context.Context, machine, self, name string, args 
 		lctx, lcancel := context.WithTimeout(sctx, agentStartListTimeout)
 		knownIDs := s.knownSessionIDs(lctx, am.ID)
 		lcancel()
-		if err := s.call(sctx, am.ID, DeviceSessionStart, params, &res); err != nil {
+		err = s.call(sctx, am.ID, DeviceSessionStart, params, &res)
+		if reason, refused := ultracodeRefusal(err, params); refused {
+			delete(params, "ultracode") // an extra the agent it landed on cannot have: it starts without it (#3596)
+			if err = s.call(sctx, am.ID, DeviceSessionStart, params, &res); err == nil {
+				note += " Note: started without ultracode (" + reason + ")."
+			}
+		}
+		if err != nil {
 			s.recordStartFailure(ctx, am.ID, launcher, err)
 			if startResultUnknown(err) {
 				// The node may already have the session and a running agent although the answer never came back:

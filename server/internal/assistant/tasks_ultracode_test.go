@@ -3,9 +3,13 @@ package assistant
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/nwverse/persona/server/internal/proto"
+	"github.com/nwverse/persona/server/internal/rpc"
 )
 
 // planStart opens a plan that waits for the card's "Start" (ultracode as the assistant gave it; nil leaves it out),
@@ -89,6 +93,95 @@ func TestAgentStartUltracode(t *testing.T) {
 		}
 		if v, sent := starts[0]["ultracode"]; sent != on || sent && v != true {
 			t.Fatalf("ultracode %v: session.start had %v (sent %v)", on, v, sent)
+		}
+	}
+}
+
+// A start refused for its ultracode (a Codex launcher, an old Claude Code, a node too old for it) goes again without
+// it: the task starts, its card and receipt say why, and the stored plan stops asking for it (#3596).
+func TestTaskStartsWithoutUltracodeWhenRefused(t *testing.T) {
+	for _, refusal := range []*rpc.Error{
+		{Code: "ultracode_unsupported", Message: "只有 Claude Code Agent 支持 ultracode"},
+		{Code: proto.CodeNodeOutdated, Message: "这台机器上的 personad 太旧，还不支持 ultracode，需要更新 node"},
+	} {
+		t.Run(refusal.Code, func(t *testing.T) {
+			s, f := newTaskService(t)
+			f.refuseUltra = refusal
+			ctx := context.Background()
+			args, _ := json.Marshal(map[string]any{"tasks": []any{map[string]any{"title": "重构同步层", "prompt": "把同步层拆成三个模块并补测试",
+				"machine": "box", "cwd": "/code/app", "readonly": false, "why": "这个仓库最近在 box 上", "ultracode": true}}})
+			if _, err := s.toolTaskPlan(ctx, "conv1", args); err != nil {
+				t.Fatal(err)
+			}
+			items, plans, _ := s.feed(ctx, "conv1", time.Time{})
+			var planID string
+			for _, it := range items {
+				if it.Kind == feedPlan {
+					planID = it.Ref
+				}
+			}
+			if _, err := s.startPlan(ctx, planID, nil, false); err != nil {
+				t.Fatal(err)
+			}
+			waitFor(t, "the start without ultracode", func() bool { f.mu.Lock(); defer f.mu.Unlock(); return f.agents == 1 })
+			f.mu.Lock()
+			starts := append([]map[string]any(nil), f.starts...)
+			f.mu.Unlock()
+			if len(starts) != 2 || starts[0]["ultracode"] != true {
+				t.Fatalf("starts %v: want the refused one with ultracode, then one without", starts)
+			}
+			if _, sent := starts[1]["ultracode"]; sent {
+				t.Fatalf("the second start asked for ultracode again: %v", starts[1])
+			}
+			waitFor(t, "the plan to record the start", func() bool {
+				_, plans, _ = s.feed(ctx, "conv1", time.Time{})
+				pt := plans[planID].Tasks[0]
+				return pt.Ultracode != nil && !*pt.Ultracode && strings.Contains(pt.Why, refusal.Message)
+			})
+			if pt := plans[planID].Tasks[0]; pt.Error != "" {
+				t.Fatalf("the task reads as not started: %q", pt.Error)
+			}
+		})
+	}
+}
+
+// agent_start does the same, and its answer says so (#3596).
+func TestAgentStartWithoutUltracodeWhenRefused(t *testing.T) {
+	s, f := newTaskService(t)
+	f.refuseUltra = &rpc.Error{Code: "ultracode_unsupported", Message: "只有 Claude Code Agent 支持 ultracode"}
+	args, _ := json.Marshal(map[string]any{"machine": "box", "cwd": "/code/app", "prompt": "把同步层拆成三个模块", "ultracode": true})
+	res, err := s.runTool(context.Background(), "server", "conv9", "agent_start", args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res, "started without ultracode (只有 Claude Code Agent 支持 ultracode)") {
+		t.Fatalf("the answer does not say ultracode is off: %q", res)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.starts) != 2 || f.agents != 1 {
+		t.Fatalf("starts %v, agents %d: want one refused start and one agent", f.starts, f.agents)
+	}
+}
+
+// Only a refusal of ultracode, of a start that asked for it, starts again without it.
+func TestUltracodeRefusal(t *testing.T) {
+	asked := map[string]any{"ultracode": true}
+	for _, c := range []struct {
+		name   string
+		err    error
+		params map[string]any
+		want   bool
+	}{
+		{"unsupported", &rpc.Error{Code: "ultracode_unsupported", Message: "x"}, asked, true},
+		{"old node", &rpc.Error{Code: proto.CodeNodeOutdated, Message: "x"}, asked, true},
+		{"not asked", &rpc.Error{Code: "ultracode_unsupported", Message: "x"}, map[string]any{}, false},
+		{"another refusal", &rpc.Error{Code: "codex_needs_prompt", Message: "x"}, asked, false},
+		{"not a refusal", errors.New("connection reset"), asked, false},
+		{"no error", nil, asked, false},
+	} {
+		if _, got := ultracodeRefusal(c.err, c.params); got != c.want {
+			t.Errorf("%s: refused %v, want %v", c.name, got, c.want)
 		}
 	}
 }
