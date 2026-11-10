@@ -1,9 +1,10 @@
 import XCTest
 
-/// The + panel's grid picks the photo under the finger (#3689). A thumbnail is drawn filling its square cell
-/// (`scaledToFill`) and clipped to it; a wide or tall picture's thumbnail used to keep taking taps past its cell, so the
-/// photo to the right or below took a tap meant for its neighbour. Demo Mode (Demo.json) with pictures of mixed shapes
-/// in the simulator's library (`xcrun simctl addmedia`): wide desktop screenshots and panoramas, tall phone
+/// The + panel's grid picks the photo under the finger (#3689, fixed with #3702). A thumbnail is drawn filling its square
+/// cell (`scaledToFill`) and clipped to it; a wide or tall picture's thumbnail used to keep taking taps past its cell, so
+/// the photo to the right or below took a tap meant for its neighbour. `AttachGridTests` taps each of the first cells'
+/// rings; this taps all over every cell on screen and checks the picks' numbers. Demo Mode (Demo.json) with pictures of
+/// mixed shapes in the simulator's library (`xcrun simctl addmedia`): wide desktop screenshots and panoramas, tall phone
 /// screenshots, squares. A library of squares alone never shows it. The Photos prompt, if it comes, is allowed.
 /// iPhone only: the iPad keeps the + menu. PERSONA_SHOTS saves the screenshots there too.
 final class AttachGridTapTests: XCTestCase {
