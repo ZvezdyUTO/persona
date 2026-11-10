@@ -11,6 +11,10 @@ both came out in the body font. Only `.fontDesign(nil)` leaves runs their own fo
 runs that need their own face, and give the other runs the design as their family (`RunFonts` in
 `Views/Chat/MessageViews.swift`).
 
+## Example-domain labels must be generic too (#3593)
+
+An `example.com` suffix does not make its hostname label anonymous: the label can still match a configured private machine value and block both app and web prebuild privacy scans. Use neutral fixture labels and change the expected route together, preserving trimming, encoding and forwarding assertions. Do not exempt a private value just because it appears in test data.
+
 ## Binary-plist reference bytes are not text (#3166)
 
 A compiled localization dictionary's reference table can accidentally spell an address even when every decoded key
