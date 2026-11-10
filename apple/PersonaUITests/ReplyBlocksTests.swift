@@ -12,19 +12,22 @@ final class ReplyBlocksTests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        guard let hub = ProcessInfo.processInfo.environment["PERSONA_MOCK_HUB"] else {
+        guard ProcessInfo.processInfo.environment["PERSONA_MOCK_HUB"] != nil else {
             throw XCTSkip("needs scripts/mock/mock_hub.py with MOCK_REPLY_BLOCKS=1 (PERSONA_MOCK_HUB)")
         }
+    }
+
+    /// The chat with the reply, as it loads.
+    @MainActor private func open() {
+        let hub = ProcessInfo.processInfo.environment["PERSONA_MOCK_HUB"]!
         app = XCUIApplication()
         let pair = "persona://pair?url=" + hub.addingPercentEncoding(withAllowedCharacters: .alphanumerics)! + "&token=mock"
         app.launchArguments = ["-pairURL", pair, "-tab", "dev", "-openSession", "macbook/a1f3c2d4-0000-4000-8000-0000005e1ec9",
                                "-openChatsFresh", "YES"]
-        MainActor.assumeIsolated {
-            app.launchPinned()
-            let last = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "有问题再找我")).firstMatch
-            XCTAssertTrue(last.waitForExistence(timeout: 20), "the reply did not show:\n\(app.debugDescription)")
-            acceptIconAlert(timeout: 2)
-        }
+        app.launchPinned()
+        let last = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "有问题再找我")).firstMatch
+        XCTAssertTrue(last.waitForExistence(timeout: 20), "the reply did not show:\n\(app.debugDescription)")
+        acceptIconAlert(timeout: 2)
     }
 
     private func menuItem(_ label: String) -> XCUIElement {
@@ -53,6 +56,7 @@ final class ReplyBlocksTests: XCTestCase {
     }
 
     @MainActor func testACodeBlocksCopyTakesTheWholeBlock() throws {
+        open()
         let copy = app.buttons.matching(identifier: "code-block-copy").firstMatch
         XCTAssertTrue(copy.waitForExistence(timeout: 5), "no Copy on the code block:\n\(app.debugDescription)")
         XCTAssertTrue(app.staticTexts["ts"].exists, "the fence's language is not in the block's bar")
@@ -63,6 +67,7 @@ final class ReplyBlocksTests: XCTestCase {
     }
 
     @MainActor func testATapOnInlineCodeCopiesIt() throws {
+        open()
         let code = app.links.matching(NSPredicate(format: "label CONTAINS %@", "npm run build")).firstMatch
         XCTAssertTrue(code.waitForExistence(timeout: 5), "inline code is not tappable:\n\(app.debugDescription)")
         code.tap()
@@ -71,6 +76,7 @@ final class ReplyBlocksTests: XCTestCase {
     }
 
     @MainActor func testALongQuoteFoldsAndOpens() throws {
+        open()
         let quotes = app.descendants(matching: .any).matching(identifier: "reply-quote")
         XCTAssertTrue(quotes.firstMatch.waitForExistence(timeout: 5))
         XCTAssertEqual(quotes.count, 2)
