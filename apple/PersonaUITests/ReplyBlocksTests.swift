@@ -56,9 +56,12 @@ final class ReplyBlocksTests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5), "no composer:\n\(app.debugDescription)")
         field.tap()
         empty()
-        field.press(forDuration: 1.0)
         let paste = menuItem("粘贴")
-        XCTAssertTrue(paste.waitForExistence(timeout: 3), "no 粘贴 in the composer's edit menu:\n\(app.debugDescription)")
+        for _ in 0..<2 where !paste.exists { // the menu does not always come up on the press after the deleting
+            field.press(forDuration: 1.0)
+            _ = paste.waitForExistence(timeout: 3)
+        }
+        XCTAssertTrue(paste.exists, "no 粘贴 in the composer's edit menu:\n\(app.debugDescription)")
         paste.tap()
         sleep(1)
         let got = composer.value as? String ?? ""
@@ -91,16 +94,21 @@ final class ReplyBlocksTests: XCTestCase {
         let quotes = app.descendants(matching: .any).matching(identifier: "reply-quote")
         XCTAssertTrue(quotes.firstMatch.waitForExistence(timeout: 5))
         XCTAssertEqual(quotes.count, 2)
-        // A container's frame takes in the lines clipped away: where its chevron sits says how tall it shows.
+        // A container's frame takes in the lines clipped away, and the chat holds its bottom still while the quote
+        // grows: how tall it shows is from its words' top to its chevron.
         let chevron = app.buttons.matching(identifier: "quote-fold").firstMatch
-        XCTAssertTrue(chevron.exists, "the long quote is not folded")
+        let words = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "上线前请确认")).firstMatch
+        XCTAssertTrue(chevron.exists && words.exists, "the long quote is not folded")
         XCTAssertEqual(chevron.label, "展开")
-        let folded = chevron.frame.maxY
+        func shown() -> CGFloat { chevron.frame.maxY - words.frame.minY }
+        let folded = shown()
         app.buttons["展开"].firstMatch.tap()
         XCTAssertTrue(app.buttons["收起"].firstMatch.waitForExistence(timeout: 3), "no 收起 on the opened quote")
-        XCTAssertGreaterThan(chevron.frame.maxY, folded + 20, "opened, the quote did not grow")
+        sleep(1) // it opens with the layout animation
+        XCTAssertGreaterThan(shown(), folded + 20, "opened, the quote did not grow")
         chevron.tap()
         XCTAssertTrue(app.buttons["展开"].firstMatch.waitForExistence(timeout: 3), "folded again, no 展开")
-        XCTAssertLessThan(abs(chevron.frame.maxY - folded), 2, "folded again, not as before")
+        sleep(1)
+        XCTAssertLessThan(abs(shown() - folded), 2, "folded again, not as before")
     }
 }
