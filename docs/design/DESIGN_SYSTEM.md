@@ -397,6 +397,18 @@ For every component: use the design-system one, not a lookalike. Counts are appr
 
 Toasts: error, success or info; one slot, so a new toast replaces the old. Duration 2.5 s, 4 s for errors, 5 s with an action (`apple/Persona/DesignSystem/Toasts.swift:57`). Drawn in a pass-through window and announced to VoiceOver. About 255 call sites. Loading and error shapes are inconsistent across screens (DS-15, DS-16). Web toasts are dark capsules at the bottom (2.8 / 5.2 / 6 s). Android uses Snackbar, per-feature hosts and system Toast (DS-25).
 
+### 3.11 Code blocks, inline code and quotes in replies
+
+Drawn as Telegram draws them (#2984), the same on iOS / iPadOS, the web and Android; the frozen Mac keeps its hover Copy and plain quotes. There was no component for these: replies used the Markdown renderer's defaults (a plain code box, a thin bar), and the one code block with a title bar (`LarkCodeBlock`, Inbox) is the template, not a reply's.
+
+| Piece | Look | Interaction | Source |
+| --- | --- | --- | --- |
+| Code block | a title bar on top (`Theme.codeBar`) with the fence's language (none when it names none) and Copy (icon and word); the code under it in the monospaced font on `Theme.codeBackground`, scrolling sideways | Copy takes the whole block: the success haptic and the "Code copied" toast. Copy's hit area is 44 pt, past the bar's edges. A sideways drag on a wide block still goes to the code | `ReplyCodeBlock` (`apple/Persona/Views/Chat/ReplyBlocks.swift`), web and Android `CodeBar` |
+| Inline code | the body's color on `Theme.inlineCodeBackground`, in `Theme.Font.inlineCodeFamily` | a tap copies it ("Copied", success haptic). Blue is kept for what opens: a code span that is a path there is a link that opens the file, not a copy. A long press still lifts the message | `CodeCopyMarkdown` (PersonaKit), web `copyInlineCode`, Android `copyingCode` |
+| Quote | the accent bar on a faint accent card (`Theme.quoteBackground`), a quote mark at the top end (`Theme.Icon.quoteMark`) | longer than about four lines (`Theme.Size.quoteFold`, scaled with the text) it folds with its end faded; a tap opens it, its chevron (44 pt) folds it again. A reply still being written never folds its quotes | `ReplyQuote` on each platform |
+
+The in-place selection view (`LiftSelection.swift`) draws the quote card under the selection highlight. A code block's title bar is not drawn there yet.
+
 ## 4. Interaction patterns
 
 ### 4.1 Navigation hierarchy (super rule 3)

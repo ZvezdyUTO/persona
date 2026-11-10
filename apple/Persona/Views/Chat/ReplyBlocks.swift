@@ -21,7 +21,7 @@ struct ReplyCodeBlock: View {
                         Text("Copy [Message Menu 63d90d]").lineLimit(1)
                     }
                     .font(Theme.Font.label)
-                    .padding(.vertical, Theme.Space.sm)
+                    .frame(minWidth: Theme.Size.tapTarget, minHeight: Theme.Size.tapTarget)
                     .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
@@ -30,8 +30,12 @@ struct ReplyCodeBlock: View {
                 .accessibilityIdentifier("code-block-copy")
             }
             .padding(.horizontal, Theme.Space.m)
+            // The bar is a label's height; Copy's 44 pt reach past its edges (nothing is clipped, it is drawn over the code).
+            .padding(.vertical, -Theme.Space.sm)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.codeBar)
+            .background(Theme.codeBar, in: UnevenRoundedRectangle(topLeadingRadius: Theme.Radius.control,
+                                                                  topTrailingRadius: Theme.Radius.control, style: .continuous))
+            .zIndex(1)
             ScrollView(.horizontal, showsIndicators: false) {
                 config.label
                     .relativeLineSpacing(.em(0.2))
@@ -41,9 +45,9 @@ struct ReplyCodeBlock: View {
                     .fontDesign(.monospaced)
                     .padding(Theme.Space.m)
             }
+            .background(Theme.codeBackground, in: UnevenRoundedRectangle(bottomLeadingRadius: Theme.Radius.control,
+                                                                         bottomTrailingRadius: Theme.Radius.control, style: .continuous))
         }
-        .background(Theme.codeBackground)
-        .clipShape(.rect(cornerRadius: Theme.Radius.control, style: .continuous))
     }
 }
 
@@ -102,7 +106,7 @@ struct ReplyQuote: View {
                         ThemedIcon(open ? Theme.Icon.collapse : Theme.Icon.expand)
                             .font(Theme.Font.label)
                             .foregroundStyle(Theme.accent)
-                            .padding(Theme.Space.s)
+                            .frame(minWidth: Theme.Size.tapTarget, minHeight: Theme.Size.tapTarget)
                             .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
