@@ -36,6 +36,9 @@ struct ReplyCodeBlock: View {
                 config.label
                     .relativeLineSpacing(.em(0.2))
                     .markdownTextStyle { FontFamilyVariant(.monospaced); FontSize(.em(Theme.Level.code.size / Theme.Level.body.size)) }
+                    // The style's font design (RootView's `fontDesign`) won over the monospaced variant: the code was
+                    // drawn in the body's font.
+                    .fontDesign(.monospaced)
                     .padding(Theme.Space.m)
             }
         }
