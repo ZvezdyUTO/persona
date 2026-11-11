@@ -845,6 +845,26 @@ func TestAutomaticProviderDeletionDoesNotCountAsExplicitUse(t *testing.T) {
 	}
 }
 
+// When only one provider is eligible, deleting it leaves automatic API categories with no model, so deletion is
+// still refused with 409 Conflict naming the affected purposes.
+func TestDeletingLastAutomaticProviderStillProtectsBuiltinPurposes(t *testing.T) {
+	s, _, _ := modelService(t)
+	key, err := s.sealKey("synthetic-provider-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	putLaunchers(t, s,
+		storedLauncher{ManagedLauncher: proto.ManagedLauncher{Name: "only", Kind: "api", BaseURL: "https://api.example.com", Model: "only-model"}, KeySealed: key})
+	p := purposeOf(t, s, "kb")
+	if p.Effective.Provider != "launcher.only" {
+		t.Fatalf("kb did not start on the automatic provider: %+v", p)
+	}
+	rec := request(s, http.MethodDelete, "/api/v1/launchers/only", "")
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), p.Name) {
+		t.Fatalf("deleting the last automatic provider was not protected: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func slicesContain(list []string, s string) bool {
 	for _, x := range list {
 		if x == s {

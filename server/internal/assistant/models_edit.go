@@ -244,12 +244,15 @@ func (s *Service) providerModelUses(ctx context.Context, provider string) ([]str
 			without := slices.DeleteFunc(slices.Clone(s.storedLaunchers(ctx)), func(l storedLauncher) bool {
 				return launcherProvider(l.Name) == provider
 			})
-			fallback, err := s.resolveModel(withManagedSnapshot(ctx, without), id)
+			withoutCtx := withManagedSnapshot(ctx, without)
+			fallback, err := s.resolveModel(withoutCtx, id)
 			if err != nil {
 				return nil, err
 			}
-			if fallback.Provider != provider {
-				continue
+			if fallback.Provider != "" && fallback.Provider != provider {
+				if strings.HasPrefix(fallback.Provider, "launcher.") || s.legacyModelConfig(withoutCtx, fallback.Provider).BaseURL != "" {
+					continue
+				}
 			}
 		}
 		uses = append(uses, p.Name)
